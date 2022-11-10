@@ -12,6 +12,7 @@ services:
       test: ['CMD', 'pg_isready', '-U', 'postgres']
     volumes:
       - postgres:/var/lib/postgresql/data
+    env_file: .env
     environment:
       - 'POSTGRES_HOST_AUTH_METHOD=trust'
   redis:
@@ -50,8 +51,8 @@ services:
         soft: -1
         hard: -1
       nofile:
-        soft: 65536
-        hard: 65536
+        soft: 512000
+        hard: 512000
 
   web:
     image: tootsuite/mastodon:v3.5.3
