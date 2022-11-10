@@ -1,0 +1,152 @@
+version: '3'
+services:
+  # Databases
+  db:
+    container_name: "mastodon_db"
+    restart: always
+    image: postgres:14-alpine
+    shm_size: 256mb
+    networks:
+      - internal
+    healthcheck:
+      test: ['CMD', 'pg_isready', '-U', 'postgres']
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    environment:
+      - 'POSTGRES_HOST_AUTH_METHOD=trust'
+  redis:
+    restart: always
+    container_name: "mastodon_redis"
+    image: redis:7-alpine
+    networks:
+      - internal
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+    volumes:
+      - redis:/data
+  es:
+    restart: always
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.4
+    container_name: mastodon_es
+    environment:
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m -Des.enforce.bootstrap.checks=true"
+      - "xpack.license.self_generated.type=basic"
+      - "xpack.security.enabled=false"
+      - "xpack.watcher.enabled=false"
+      - "xpack.graph.enabled=false"
+      - "xpack.ml.enabled=false"
+      - "bootstrap.memory_lock=true"
+      - "cluster.name=es-mastodon"
+      - "discovery.type=single-node"
+      - "thread_pool.write.queue_size=1000"
+    networks:
+       - internal
+    healthcheck:
+       test: ["CMD-SHELL", "curl --silent --fail localhost:9200/_cluster/health || exit 1"]
+    volumes:
+       - elasticsearch:/usr/share/elasticsearch/data
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+
+  web:
+    image: tootsuite/mastodon:v3.5.3
+    container_name: "mastodon_web"
+    restart: always
+    env_file: .env
+    command: bash -c "rm -f /mastodon/tmp/pids/server.pid; bundle exec rails s -p 3000"
+    networks:
+      - external
+      - internal
+    healthcheck:
+      # prettier-ignore
+      test: ['CMD-SHELL', 'wget -q --spider --proxy=off localhost:3000/health || exit 1']
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.mastodon.rule=Host(`m.localhost`)"
+      - "traefik.http.routers.mastodon.tls=true"
+      - "traefik.http.routers.mastodon.service=mastodon"
+      - "traefik.http.services.mastodon.loadbalancer.server.port=3000"
+    depends_on:
+      - db
+      - redis
+      - minio
+      - es
+    volumes:
+      - system:/mastodon/public/system
+
+  streaming:
+    image: tootsuite/mastodon:v3.5.3
+    container_name: "mastodon_streaming"
+    restart: always
+    env_file: .env
+    command: node ./streaming
+    networks:
+      - external
+      - internal
+    healthcheck:
+      # prettier-ignore
+      test: ['CMD-SHELL', 'wget -q --spider --proxy=off localhost:4000/api/v1/streaming/health || exit 1']
+    ports:
+      - '4000:4000'
+    depends_on:
+      - db
+      - redis
+      - minio
+
+  sidekiq:
+    image: tootsuite/mastodon:v3.5.3
+    container_name: "mastodon_sidekiq"
+    restart: always
+    env_file: .env
+    command: bundle exec sidekiq
+    depends_on:
+      - db
+      - redis
+    networks:
+      - external
+      - internal
+    volumes:
+      - system:/mastodon/public/system
+    healthcheck:
+      test: ['CMD-SHELL', "ps aux | grep '[s]idekiq\ 6' || false"]
+
+  minio:
+    image: minio/minio:RELEASE.2022-11-08T05-27-07Z
+    container_name: "mastodon_minio"
+    restart: always
+    env_file: .env
+    command: minio server --console-address ":9090"
+    networks:
+      - external
+      - internal
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.files.rule=Host(`files.localhost`)"
+      - "traefik.http.routers.files.tls=true"
+      - "traefik.http.routers.files.service=files"
+      - "traefik.http.services.files.loadbalancer.server.port=9000"
+      - "traefik.http.routers.minio.rule=Host(`minio.localhost`)"
+      - "traefik.http.routers.minio.tls=true"
+      - "traefik.http.routers.minio.service=minio"
+      - "traefik.http.services.minio.loadbalancer.server.port=9090"
+    volumes:
+      - minio:/data
+
+
+volumes:
+  system:
+  postgres:
+  redis:
+  elasticsearch:
+  minio:
+
+networks:
+  external:
+    external: true
+  internal:
+    internal: true
