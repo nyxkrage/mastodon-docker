@@ -51,8 +51,8 @@ services:
         soft: -1
         hard: -1
       nofile:
-        soft: 512000
-        hard: 512000
+        soft: 65565
+        hard: 65565
 
   web:
     image: tootsuite/mastodon:v3.5.3
@@ -68,7 +68,7 @@ services:
       test: ['CMD-SHELL', 'wget -q --spider --proxy=off localhost:3000/health || exit 1']
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.mastodon.rule=Host(`m.localhost`)"
+      - "traefik.http.routers.mastodon.rule=Host(`${MASTODON_SUBDOMAIN}${DOMAIN}`)"
       - "traefik.http.routers.mastodon.tls=true"
       - "traefik.http.routers.mastodon.service=mastodon"
       - "traefik.http.services.mastodon.loadbalancer.server.port=3000"
@@ -92,8 +92,12 @@ services:
     healthcheck:
       # prettier-ignore
       test: ['CMD-SHELL', 'wget -q --spider --proxy=off localhost:4000/api/v1/streaming/health || exit 1']
-    ports:
-      - '4000:4000'
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.streaming.rule=Host(`m.${DOMAIN}`) && Path(`/api/v1/streaming/{path:.*}`)"
+      - "traefik.http.routers.streaming.tls=true"
+      - "traefik.http.routers.streaming.service=streaming"
+      - "traefik.http.services.streaming.loadbalancer.server.port=4000"
     depends_on:
       - db
       - redis
@@ -127,11 +131,11 @@ services:
       - internal
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.files.rule=Host(`files.localhost`)"
+      - "traefik.http.routers.files.rule=Host(`${FILES_SUBDOMAIN}${DOMAIN}`)"
       - "traefik.http.routers.files.tls=true"
       - "traefik.http.routers.files.service=files"
       - "traefik.http.services.files.loadbalancer.server.port=9000"
-      - "traefik.http.routers.minio.rule=Host(`minio.localhost`)"
+      - "traefik.http.routers.minio.rule=Host(`minio.${DOMAIN}`)"
       - "traefik.http.routers.minio.tls=true"
       - "traefik.http.routers.minio.service=minio"
       - "traefik.http.services.minio.loadbalancer.server.port=9090"
@@ -150,4 +154,3 @@ networks:
   external:
     external: true
   internal:
-    internal: true
