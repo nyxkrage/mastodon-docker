@@ -4,8 +4,6 @@ This is a setup for Running [Mastodon](https://joinmastodon.org/) with [Docker](
 
 All behind a [Traefik](https://traefik.io) reverse proxy, in a seperate compose file in-case of wanting more than just Mastodon behind it
 
-## TODO: Expand This README
-
 ## Getting Started
 
 1. Make sure to set `vm.max_map_count` to at least `262144` for ElasticSearch to work
