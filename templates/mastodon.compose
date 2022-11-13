@@ -1,4 +1,4 @@
-version: '3'
+version: '3.5'
 services:
   # Databases
   db:
@@ -68,7 +68,7 @@ services:
       test: ['CMD-SHELL', 'wget -q --spider --proxy=off localhost:3000/health || exit 1']
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.mastodon.rule=Host(`${MASTODON_SUBDOMAIN}${DOMAIN}`)"
+      - "traefik.http.routers.mastodon.rule=Host(\`${MASTODON_SUBDOMAIN}${DOMAIN}\`)"
       - "traefik.http.routers.mastodon.tls=true"
       - "traefik.http.routers.mastodon.service=mastodon"
       - "traefik.http.services.mastodon.loadbalancer.server.port=3000"
@@ -94,7 +94,7 @@ services:
       test: ['CMD-SHELL', 'wget -q --spider --proxy=off localhost:4000/api/v1/streaming/health || exit 1']
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.streaming.rule=Host(`m.${DOMAIN}`) && Path(`/api/v1/streaming/{path:.*}`)"
+      - "traefik.http.routers.streaming.rule=Host(\`m.${DOMAIN}\`) && Path(\`/api/v1/streaming/{path:.*}\`)"
       - "traefik.http.routers.streaming.tls=true"
       - "traefik.http.routers.streaming.service=streaming"
       - "traefik.http.services.streaming.loadbalancer.server.port=4000"
@@ -129,28 +129,39 @@ services:
     networks:
       - external
       - internal
+    healthcheck:
+          test: [ 'CMD-SHELL', "curl localhost:9000/minio/health/live || exit 1" ]
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.files.rule=Host(`${FILES_SUBDOMAIN}${DOMAIN}`)"
+      - "traefik.http.routers.files.rule=Host(\`${FILES_SUBDOMAIN}${DOMAIN}\`)"
       - "traefik.http.routers.files.tls=true"
       - "traefik.http.routers.files.service=files"
       - "traefik.http.services.files.loadbalancer.server.port=9000"
-      - "traefik.http.routers.minio.rule=Host(`minio.${DOMAIN}`)"
+      - "traefik.http.routers.minio.rule=Host(\`minio.${DOMAIN}\`)"
       - "traefik.http.routers.minio.tls=true"
       - "traefik.http.routers.minio.service=minio"
       - "traefik.http.services.minio.loadbalancer.server.port=9090"
     volumes:
       - minio:/data
-
+    ulimits:
+      nofile:
+        soft: 65565
+        hard: 65565
 
 volumes:
   system:
+    name: mastodonSysVol
   postgres:
+    name: mastodonDbVol
   redis:
+    name: mastodonRedisVol
   elasticsearch:
+    name: mastodonEsVol
   minio:
+    name: mastodonFileVol
 
 networks:
   external:
     external: true
   internal:
+    name: mastodonInternalNet

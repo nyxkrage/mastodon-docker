@@ -1,4 +1,4 @@
-version: "3.3"
+version: "3.5"
 services:
   traefik:
     image: "traefik:v2.9"
@@ -14,14 +14,14 @@ services:
       - "--providers.docker.exposedbydefault=false"
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
-      - "--certificatesresolvers.le.acme.email=${}${EMAIL}"
+      - "--certificatesresolvers.le.acme.email=${ACME_EMAIL}"
       - "--certificatesresolvers.le.acme.storage=/etc/traefik/acme.json"
       - "--certificatesresolvers.le.acme.httpchallenge=true"
       - "--certificatesresolvers.le.acme.httpchallenge.entrypoint=web"
     labels:
       - traefik.enable=true
-      - traefik.http.middlewares.auth.basicauth.users=admin:${PASS_HASH}
-      - traefik.http.routers.api.rule=Host(`proxy.${DOMAIN}`)
+      - traefik.http.middlewares.auth.basicauth.users=${PASS_HASH}
+      - traefik.http.routers.api.rule=Host(\`proxy.${DOMAIN}\`)
       - traefik.http.routers.api.tls=true
       - traefik.http.routers.api.middlewares=auth
       - traefik.http.routers.api.service=api@internal
@@ -30,8 +30,11 @@ services:
       - "443:443"
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock:z,ro"
-      - "./traefik:/etc/traefik:z"
+      - "traefik:/etc/traefik"
 
+volumes:
+  traefik:
+    name: traefikVol
 
 networks:
   external:
