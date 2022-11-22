@@ -2,7 +2,7 @@ version: '3.5'
 services:
   # Databases
   db:
-    container_name: "mastodon_db"
+    container_name: "mastodonDb"
     restart: always
     image: postgres:14-alpine
     shm_size: 256mb
@@ -12,12 +12,11 @@ services:
       test: ['CMD', 'pg_isready', '-U', 'postgres']
     volumes:
       - postgres:/var/lib/postgresql/data
-    env_file: .env
     environment:
-      - 'POSTGRES_HOST_AUTH_METHOD=trust'
+      - POSTGRES_PASSWORD
   redis:
     restart: always
-    container_name: "mastodon_redis"
+    container_name: "mastodonRedis"
     image: redis:7-alpine
     networks:
       - internal
@@ -28,7 +27,7 @@ services:
   es:
     restart: always
     image: docker.elastic.co/elasticsearch/elasticsearch:7.17.4
-    container_name: mastodon_es
+    container_name: "mastodonEs"
     environment:
       - "ES_JAVA_OPTS=-Xms512m -Xmx512m -Des.enforce.bootstrap.checks=true"
       - "xpack.license.self_generated.type=basic"
@@ -56,9 +55,40 @@ services:
 
   web:
     image: tootsuite/mastodon:v3.5.3
-    container_name: "mastodon_web"
+    container_name: "mastodonWeb"
     restart: always
-    env_file: .env
+    environment:
+      - LOCAL_DOMAIN
+      - SINGLE_USER_MODE
+      - SECRET_KEY_BASE
+      - OTP_SECRET
+      - VAPID_PRIVATE_KEY
+      - VAPID_PUBLIC_KEY
+      - DB_HOST
+      - DB_PORT
+      - DB_NAME
+      - DB_USER
+      - DB_PASS
+      - REDIS_HOST
+      - REDIS_PORT
+      - REDIS_PASSWORD
+      - ES_ENABLED
+      - ES_HOST
+      - ES_PORT
+      - S3_ENABLED
+      - S3_PROTOCOL
+      - S3_HOSTNAME
+      - S3_BUCKET
+      - AWS_ACCESS_KEY_ID
+      - AWS_SECRET_ACCESS_KEY
+      - S3_ALIAS_HOST
+      - SMTP_SERVER
+      - SMTP_PORT
+      - SMTP_PASSWORD
+      - SMTP_LOGIN
+      - SMTP_AUTH_METHOD
+      - SMTP_OPENSSL_VERIFY_MODE
+      - SMTP_FROM_ADDRESS
     command: bash -c "rm -f /mastodon/tmp/pids/server.pid; bundle exec rails s -p 3000"
     networks:
       - external
@@ -72,6 +102,13 @@ services:
       - "traefik.http.routers.mastodon.tls=true"
       - "traefik.http.routers.mastodon.service=mastodon"
       - "traefik.http.services.mastodon.loadbalancer.server.port=3000"
+      - "traefik.http.routers.webfinger.rule=Host(\`${DOMAIN}\`) && PathPrefix(\`/.well-known/webfinger\`)"
+      - "traefik.http.routers.webfinger.middlewares=webfinger-redirect"
+      - "traefik.http.routers.webfinger.tls=true"
+      - "traefik.http.routers.webfinger.tls.certresolver=le"
+      - "traefik.http.routers.webfinger.service=noop@internal"
+      - "traefik.http.middlewares.webfinger-redirect.redirectregex.regex=^(.+?)pid1.sh(.+?)@pid1.sh$$"
+      - "traefik.http.middlewares.webfinger-redirect.redirectregex.replacement=$${1}m.pid1.sh$${2}@m.pid1.sh"
     depends_on:
       - db
       - redis
@@ -82,9 +119,17 @@ services:
 
   streaming:
     image: tootsuite/mastodon:v3.5.3
-    container_name: "mastodon_streaming"
+    container_name: "mastodonStreaming"
     restart: always
-    env_file: .env
+    environment:
+      - DB_USER
+      - DB_PASS
+      - DB_NAME
+      - DB_HOST
+      - DB_PORT
+      - REDIS_HOST
+      - REDIST_PORT
+      - REDIS_PASSWORD
     command: node ./streaming
     networks:
       - external
@@ -105,9 +150,19 @@ services:
 
   sidekiq:
     image: tootsuite/mastodon:v3.5.3
-    container_name: "mastodon_sidekiq"
+    container_name: "mastodonSidekiq"
     restart: always
-    env_file: .env
+    environment:
+      - DB_USER
+      - DB_PASS
+      - DB_NAME
+      - DB_HOST
+      - DB_PORT
+      - REDIS_HOST
+      - REDIS_PORT
+      - REDIS_PASSWORD
+      - SECRET_KEY_BASE
+      - OTP_SECRET
     command: bundle exec sidekiq
     depends_on:
       - db
@@ -122,9 +177,13 @@ services:
 
   minio:
     image: minio/minio:RELEASE.2022-11-08T05-27-07Z
-    container_name: "mastodon_minio"
+    container_name: "mastodonMinio"
     restart: always
-    env_file: .env
+    environment:
+      - MINIO_ROOT_USER
+      - MINIO_ROOT_PASSWORD
+      - MINIO_VOLUMES
+      - MINIO_BROWSER_REDIRECT
     command: minio server --console-address ":9090"
     networks:
       - external
